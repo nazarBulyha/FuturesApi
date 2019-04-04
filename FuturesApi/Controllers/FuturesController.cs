@@ -2,18 +2,19 @@
 {
     using FuturesApi.Models.Futures;
     using FuturesApi.Models.FuturesDepth;
+    using FuturesApi.Helpers;
     using Models;
-    using Newtonsoft.Json;
     using System;
     using System.Collections.Generic;
     using System.Linq;
     using System.Threading.Tasks;
     using System.Web.Http;
     using UtilHelper;
+    using System.Web.Http.Cors;
 
+    [EnableCors(origins: "*", headers: "*", methods: "*")]
     public class FuturesController : ApiController
     {
-        // api = toLower + _usd
         private List<IFutures> Futureses { get; set; }
 
         public FuturesController()
@@ -38,29 +39,33 @@
             }
         }
 
-        [HttpGet]
+        // GET api/futures
         public IHttpActionResult GetFutures()
         {
-            if (Futureses == null || Futureses.Count > 0)
+            if (!Futureses.IsListOk())
             {
                 return NotFound();
             }
 
-            var result = JsonConvert.SerializeObject(Futureses);
-
-            return Ok(result);
+            return Ok(Futureses);
         }
 
-        [HttpPost]
-        public async Task<IHttpActionResult> GetFutures(int? cumulative)
+        // GET api/futures/1000
+        public async Task<IHttpActionResult> GetFutures([FromUri]int value)
         {
-            if (!cumulative.HasValue)
+            if (value == 0)
             {
-                return NotFound();
+                return BadRequest("Cumulative value can not be 0.");
             }
 
-	        var tasks = new List<Task<IFuturesDepth>>();
-            var updatedCurrencyValues = new List<string>();
+            #region Get data
+
+            #region Create and fill tasks(get Future Depth)
+
+            var tasks = new List<Task<IFuturesDepth>>();
+
+            // convert data to that api want to see
+            Futureses = FuturesHelper.ConvertToFromFuturesApi(Futureses);
 
             foreach (var futures in Futureses)
             {
@@ -69,36 +74,52 @@
                 tasks.Add(futuresDepthTask);
             }
 
+            // convert data from api variant
+            Futureses = FuturesHelper.ConvertToFromFuturesApi(Futureses);
+
+            #endregion
+
+            #region Tasks execution result
+
             var futureDepthList = await Task.WhenAll(tasks);
 
-            if (futureDepthList.Length < 0)
+            if (!futureDepthList.IsArrayOk())
             {
                 return NotFound();
             }
 
+            #endregion
+
+            #endregion
+
+            #region Core logic
+
+            var updatedCurrencyValues = new List<string>();
+
             foreach (var futuresDepth in futureDepthList)
             {
-                #region Core logic
-
-                var askPrice = futuresDepth.Asks.FirstOrDefault(z => z.Cumulative >= cumulative / z.Price);
-                var bidPrice = futuresDepth.Bids.FirstOrDefault(z => z.Cumulative >= cumulative / z.Price);
+                var askPrice = futuresDepth.Asks.FirstOrDefault(z => z.Cumulative >= value / z.Price);
+                var bidPrice = futuresDepth.Bids.FirstOrDefault(z => z.Cumulative >= value / z.Price);
 
                 var currencyValue = askPrice != null && bidPrice != null
                     ? Math.Round((askPrice.Price - bidPrice.Price) * 100 / askPrice.Price, 2) + "%"
                     : "0";
 
                 updatedCurrencyValues.Add(currencyValue);
-
-                #endregion
             }
-            
-            // update values
+
+            #endregion
+
+            #region Update values
+
             var i = 0;
             foreach (var futures in Futureses)
             {
                 futures.Currency.Value = updatedCurrencyValues[i];
                 i++;
             }
+
+            #endregion
 
             return Ok(Futureses);
         }

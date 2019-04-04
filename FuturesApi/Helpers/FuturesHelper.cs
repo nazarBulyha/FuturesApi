@@ -1,11 +1,12 @@
-﻿namespace FuturesApi.UtilHelper
+﻿using System.Collections.Generic;
+
+namespace FuturesApi.UtilHelper
 {
     using FuturesApi.Models;
     using FuturesApi.Models.Futures;
     using FuturesApi.Models.FuturesDepth;
     using Newtonsoft.Json.Linq;
     using System;
-    using System.Diagnostics;
     using System.Linq;
     using System.Threading.Tasks;
 
@@ -71,6 +72,22 @@
             }
 
             return futureDepth;
+        }
+
+        public static List<IFutures> ConvertToFromFuturesApi(List<IFutures> futureses)
+        {
+            var alreadyContains = futureses.Select(futures => futures.Currency.Name)
+                                           .First()
+                                           .Contains("_usd");
+
+            foreach (var futurese in futureses)
+            {
+                futurese.Currency.Name = alreadyContains
+                    ? (futurese.Currency.Name.Replace("_usd", "")).ToUpper()
+                    : (futurese.Currency.Name + "_usd").ToLower();
+            }
+
+            return futureses;
         }
     }
 }

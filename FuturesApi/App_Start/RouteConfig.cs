@@ -15,7 +15,13 @@ namespace FuturesApi
 
             routes.MapRoute(
                 name: "Default",
-                url: "{controller}/{action}/{id}",
+                url: "{controller}/{value}",
+                defaults: new { controller = "Home", action = "Index", id = UrlParameter.Optional }
+            );
+
+            routes.MapRoute(
+                name: "ActionApi",
+                url: "{controller}/{action}/{value}",
                 defaults: new { controller = "Home", action = "Index", id = UrlParameter.Optional }
             );
         }
